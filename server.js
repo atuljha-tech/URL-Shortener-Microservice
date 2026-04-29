@@ -12,9 +12,25 @@ const port = process.env.PORT || 3000;
 const client = new MongoClient(process.env.MONGO_URI || 'mongodb://localhost:27017/urlshortener');
 let db;
 let urlsCollection;
+let isConnecting = false;
+let isConnected = false;
 
 // Connect to MongoDB
 async function connectDB() {
+  if (isConnected) {
+    return;
+  }
+  
+  if (isConnecting) {
+    // Wait for existing connection attempt
+    while (isConnecting) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return;
+  }
+  
+  isConnecting = true;
+  
   try {
     await client.connect();
     db = client.db('url');
@@ -24,10 +40,14 @@ async function connectDB() {
     // Create index for faster lookups
     await urlsCollection.createIndex({ short_url: 1 });
     await urlsCollection.createIndex({ original_url: 1 });
+    
+    isConnected = true;
   } catch (error) {
     console.error('MongoDB connection error:', error);
     // Use in-memory storage as fallback
     console.log('Using in-memory storage as fallback');
+  } finally {
+    isConnecting = false;
   }
 }
 
@@ -41,11 +61,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files
-app.use('/public', express.static(`${process.cwd()}/public`));
+app.use('/public', express.static(__dirname + '/public'));
 
 // Home route
 app.get('/', (req, res) => {
-  res.sendFile(process.cwd() + '/views/index.html');
+  res.sendFile(__dirname + '/views/index.html');
 });
 
 // Validate URL format
@@ -70,6 +90,9 @@ async function verifyDNS(hostname) {
 
 // POST /api/shorturl - Create short URL
 app.post('/api/shorturl', async (req, res) => {
+  // Ensure DB connection for serverless
+  await connectDB();
+  
   const originalUrl = req.body.url;
 
   // Validate URL format
@@ -145,6 +168,9 @@ app.post('/api/shorturl', async (req, res) => {
 
 // GET /api/shorturl/:short_url - Redirect to original URL
 app.get('/api/shorturl/:short_url', async (req, res) => {
+  // Ensure DB connection for serverless
+  await connectDB();
+  
   const shortUrl = parseInt(req.params.short_url);
 
   if (isNaN(shortUrl)) {
@@ -183,3 +209,6 @@ connectDB().then(() => {
     console.log(`Listening on port ${port}`);
   });
 });
+
+// Export for Vercel
+module.exports = app;
