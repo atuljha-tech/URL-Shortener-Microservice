@@ -2,32 +2,61 @@
 
 ## Deploy to Vercel
 
-1. **Install Vercel CLI** (optional):
+### Method 1: Deploy via Vercel Dashboard (Recommended)
+
+1. **Go to [Vercel](https://vercel.com) and sign in**
+
+2. **Import your GitHub repository:**
+   - Click "Add New..." → "Project"
+   - Import your repository: `atuljha-tech/URL-Shortener-Microservice`
+
+3. **Configure Environment Variables:**
+   - Before deploying, click on "Environment Variables"
+   - Add the following variable:
+     - **Name:** `MONGO_URI`
+     - **Value:** `mongodb+srv://atuljh275:atul277777@cluster0.blbtk8l.mongodb.net/?appName=Cluster0`
+   - Click "Add"
+
+4. **Deploy:**
+   - Click "Deploy"
+   - Wait for deployment to complete
+   - Your app will be live at `https://your-project-name.vercel.app`
+
+### Method 2: Deploy via Vercel CLI
+
+1. **Install Vercel CLI:**
 ```bash
 npm install -g vercel
 ```
 
-2. **Set up MongoDB Atlas** (required for production):
-   - Go to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
-   - Create a free cluster
-   - Get your connection string
-   - Whitelist all IPs (0.0.0.0/0) for Vercel
+2. **Login to Vercel:**
+```bash
+vercel login
+```
 
-3. **Deploy using Vercel CLI**:
+3. **Deploy:**
 ```bash
 vercel
 ```
 
-4. **Or deploy via GitHub**:
-   - Go to [Vercel](https://vercel.com)
-   - Import your GitHub repository
-   - Add environment variable: `MONGO_URI` with your MongoDB connection string
-   - Deploy!
+4. **Add Environment Variable:**
+```bash
+vercel env add MONGO_URI
+```
+When prompted, paste your MongoDB URI:
+```
+mongodb+srv://atuljh275:atul277777@cluster0.blbtk8l.mongodb.net/?appName=Cluster0
+```
 
-5. **Add Environment Variables in Vercel Dashboard**:
-   - Go to your project settings
-   - Navigate to "Environment Variables"
-   - Add: `MONGO_URI` = `your_mongodb_connection_string`
+5. **Redeploy with environment variables:**
+```bash
+vercel --prod
+```
+
+### Important Notes for Vercel:
+- Environment variables are added through the Vercel dashboard or CLI, NOT in `vercel.json`
+- Make sure to add the `MONGO_URI` variable before or immediately after deployment
+- If you forget to add it, go to Project Settings → Environment Variables → Add
 
 ## Deploy to Heroku
 

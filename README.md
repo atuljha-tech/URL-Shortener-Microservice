@@ -115,7 +115,19 @@ curl -X POST http://localhost:3000/api/shorturl \
 curl -L http://localhost:3000/api/shorturl/1
 ```
 
-## Technologies Used
+## 🌐 Deployment
+
+### Deploy to Vercel (Recommended)
+
+**Quick Start:** See [VERCEL_DEPLOYMENT_GUIDE.md](VERCEL_DEPLOYMENT_GUIDE.md) for detailed step-by-step instructions.
+
+**Quick Steps:**
+1. Go to [Vercel](https://vercel.com) and import your GitHub repository
+2. Add environment variable: `MONGO_URI` = `your_mongodb_connection_string`
+3. Click Deploy
+4. Done! Your app is live
+
+For other platforms (Heroku, Railway, Render), see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 - **Node.js** - Runtime environment
 - **Express** - Web framework
