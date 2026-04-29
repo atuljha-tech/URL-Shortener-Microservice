@@ -1,176 +1,80 @@
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
-const dns = require('dns').promises;
-const { URL } = require('url');
+const dns = require('dns');
 const { MongoClient } = require('mongodb');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// MongoDB connection
-const client = new MongoClient(process.env.MONGO_URI || 'mongodb://localhost:27017/urlshortener');
-let db;
-let urlsCollection;
-let isConnecting = false;
-let isConnected = false;
-
-// Connect to MongoDB
-async function connectDB() {
-  if (isConnected) {
-    return;
-  }
-  
-  if (isConnecting) {
-    // Wait for existing connection attempt
-    while (isConnecting) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    return;
-  }
-  
-  isConnecting = true;
-  
-  try {
-    await client.connect();
-    db = client.db('url');
-    urlsCollection = db.collection('testurl');
-    console.log('Connected to MongoDB');
-    
-    // Create index for faster lookups
-    await urlsCollection.createIndex({ short_url: 1 });
-    await urlsCollection.createIndex({ original_url: 1 });
-    
-    isConnected = true;
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
-    // Use in-memory storage as fallback
-    console.log('Using in-memory storage as fallback');
-  } finally {
-    isConnecting = false;
-  }
-}
-
-// In-memory storage fallback
-let urlDatabase = [];
-let urlCounter = 1;
-
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
 
 // Serve static files
 app.use('/public', express.static(__dirname + '/public'));
 
 // Home route
-app.get('/', (req, res) => {
+app.get('/', function(req, res) {
   res.sendFile(__dirname + '/views/index.html');
 });
 
-// Validate URL format
-function isValidUrl(urlString) {
-  try {
-    const urlObj = new URL(urlString);
-    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
-  } catch (err) {
-    return false;
-  }
+// MongoDB setup
+const MONGO_URI = process.env.MONGO_URI;
+let urlsCollection;
+
+async function getCollection() {
+  if (urlsCollection) return urlsCollection;
+  const client = new MongoClient(MONGO_URI);
+  await client.connect();
+  urlsCollection = client.db('url').collection('testurl');
+  return urlsCollection;
 }
 
-// Verify DNS (check if domain exists)
-async function verifyDNS(hostname) {
-  try {
-    await dns.lookup(hostname);
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
+// POST /api/shorturl
+app.post('/api/shorturl', async function(req, res) {
+  const inputUrl = req.body.url;
 
-// POST /api/shorturl - Create short URL
-app.post('/api/shorturl', async (req, res) => {
-  // Ensure DB connection for serverless
-  await connectDB();
-  
-  const originalUrl = req.body.url;
-
-  // Validate URL format
-  if (!isValidUrl(originalUrl)) {
+  // Validate URL format using regex (same approach as working reference)
+  const urlRegex = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&\/=]*)/;
+  if (!urlRegex.test(inputUrl)) {
     return res.json({ error: 'invalid url' });
   }
 
-  try {
-    const urlObj = new URL(originalUrl);
-    
-    // Verify DNS
-    const isValidDomain = await verifyDNS(urlObj.hostname);
-    if (!isValidDomain) {
+  // DNS lookup to verify domain exists
+  const hostname = new URL(inputUrl).hostname;
+  dns.lookup(hostname, async function(err) {
+    if (err) {
       return res.json({ error: 'invalid url' });
     }
 
-    // Check if URL already exists
-    if (urlsCollection) {
-      // MongoDB storage
-      let existingUrl = await urlsCollection.findOne({ original_url: originalUrl });
-      
-      if (existingUrl) {
-        return res.json({
-          original_url: existingUrl.original_url,
-          short_url: existingUrl.short_url
-        });
+    try {
+      const collection = await getCollection();
+
+      // Check if URL already exists
+      const existing = await collection.findOne({ original_url: inputUrl });
+      if (existing) {
+        return res.json({ original_url: existing.original_url, short_url: existing.short_url });
       }
 
-      // Get next short_url number
-      const count = await urlsCollection.countDocuments();
-      const shortUrl = count + 1;
+      // Get the highest short_url and increment
+      const last = await collection.find({}).sort({ short_url: -1 }).limit(1).toArray();
+      const shortUrl = last.length > 0 ? last[0].short_url + 1 : 1;
 
-      // Insert new URL
-      const newUrl = {
-        original_url: originalUrl,
-        short_url: shortUrl
-      };
+      await collection.insertOne({ original_url: inputUrl, short_url: shortUrl });
 
-      await urlsCollection.insertOne(newUrl);
-
-      return res.json({
-        original_url: newUrl.original_url,
-        short_url: newUrl.short_url
-      });
-    } else {
-      // In-memory storage fallback
-      let existingUrl = urlDatabase.find(item => item.original_url === originalUrl);
-      
-      if (existingUrl) {
-        return res.json({
-          original_url: existingUrl.original_url,
-          short_url: existingUrl.short_url
-        });
-      }
-
-      const newUrl = {
-        original_url: originalUrl,
-        short_url: urlCounter++
-      };
-
-      urlDatabase.push(newUrl);
-
-      return res.json({
-        original_url: newUrl.original_url,
-        short_url: newUrl.short_url
-      });
+      return res.json({ original_url: inputUrl, short_url: shortUrl });
+    } catch (dbErr) {
+      console.error(dbErr);
+      return res.json({ error: 'server error' });
     }
-  } catch (error) {
-    console.error('Error creating short URL:', error);
-    return res.json({ error: 'invalid url' });
-  }
+  });
 });
 
-// GET /api/shorturl/:short_url - Redirect to original URL
-app.get('/api/shorturl/:short_url', async (req, res) => {
-  // Ensure DB connection for serverless
-  await connectDB();
-  
+// GET /api/shorturl/:short_url
+app.get('/api/shorturl/:short_url', async function(req, res) {
   const shortUrl = parseInt(req.params.short_url);
 
   if (isNaN(shortUrl)) {
@@ -178,37 +82,27 @@ app.get('/api/shorturl/:short_url', async (req, res) => {
   }
 
   try {
-    if (urlsCollection) {
-      // MongoDB storage
-      const urlDoc = await urlsCollection.findOne({ short_url: shortUrl });
-      
-      if (urlDoc) {
-        return res.redirect(urlDoc.original_url);
-      } else {
-        return res.json({ error: 'No short URL found for the given input' });
-      }
-    } else {
-      // In-memory storage fallback
-      const urlDoc = urlDatabase.find(item => item.short_url === shortUrl);
-      
-      if (urlDoc) {
-        return res.redirect(urlDoc.original_url);
-      } else {
-        return res.json({ error: 'No short URL found for the given input' });
-      }
+    const collection = await getCollection();
+    const found = await collection.findOne({ short_url: shortUrl });
+
+    if (!found) {
+      return res.json({ error: 'No short URL found for the given input' });
     }
-  } catch (error) {
-    console.error('Error retrieving URL:', error);
-    return res.json({ error: 'Server error' });
+
+    // Disable caching so Vercel doesn't cache the redirect
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    return res.redirect(found.original_url);
+  } catch (err) {
+    console.error(err);
+    return res.json({ error: 'server error' });
   }
 });
 
-// Start server
-connectDB().then(() => {
-  app.listen(port, () => {
-    console.log(`Listening on port ${port}`);
-  });
+app.listen(port, function() {
+  console.log('Listening on port ' + port);
 });
 
-// Export for Vercel
 module.exports = app;
