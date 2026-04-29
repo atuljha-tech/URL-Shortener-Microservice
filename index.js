@@ -84,8 +84,7 @@ app.get('/api/shorturl/:id', function(req, res) {
     .then(function(col) {
       return col.findOne({ short_url: id }).then(function(doc) {
         if (!doc) return res.json({ error: 'No short URL found for the given input' });
-        res.set('Cache-Control', 'no-store');
-        return res.redirect(301, doc.original_url);
+        return res.redirect(doc.original_url);
       });
     })
     .catch(function(e) {
