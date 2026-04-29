@@ -8,13 +8,6 @@
   ],
   "routes": [
     {
-      "src": "/api/shorturl/([0-9]+)",
-      "dest": "/server.js",
-      "headers": {
-        "Cache-Control": "no-store, no-cache, must-revalidate"
-      }
-    },
-    {
       "src": "/(.*)",
       "dest": "/server.js"
     }
