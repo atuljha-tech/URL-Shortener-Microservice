@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: url-shortener-microservice
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: MONGO_URI
+        sync: false
