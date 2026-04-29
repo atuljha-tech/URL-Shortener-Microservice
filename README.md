@@ -64,8 +64,13 @@ npm install
 Create a `.env` file in the root directory:
 ```
 PORT=3000
-MONGO_URI=mongodb://localhost:27017/urlshortener
+MONGO_URI=your_mongodb_connection_string
 ```
+
+**Note:** This project uses MongoDB Atlas. Make sure to:
+- Create a database named `url`
+- Create a collection named `testurl`
+- Replace `your_mongodb_connection_string` with your actual MongoDB URI
 
 4. Start the server:
 ```bash
