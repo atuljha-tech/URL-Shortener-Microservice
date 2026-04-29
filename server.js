@@ -17,8 +17,8 @@ let urlsCollection;
 async function connectDB() {
   try {
     await client.connect();
-    db = client.db('urlshortener');
-    urlsCollection = db.collection('urls');
+    db = client.db('url');
+    urlsCollection = db.collection('testurl');
     console.log('Connected to MongoDB');
     
     // Create index for faster lookups
