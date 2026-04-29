@@ -13,11 +13,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Serve static files
-app.use('/public', express.static(`${process.cwd()}/public`));
+app.use('/public', express.static(__dirname + '/public'));
 
 // Home route
 app.get('/', function(req, res) {
-  res.sendFile(process.cwd() + '/views/index.html');
+  res.sendFile(__dirname + '/views/index.html');
 });
 
 // MongoDB - reuse connection across serverless invocations
